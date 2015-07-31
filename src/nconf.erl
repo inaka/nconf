@@ -52,12 +52,14 @@ apply_config(FileName) ->
                 ok ->
                     ok;
                 {error, Errors} ->
-                    [lager:error("Error when applying ~s: ~p",
-                                 [FileName, Error])
-                     || Error <- Errors]
+                    ApplyErrorMsg = "Error when applying ~s: ~p",
+                    [ error_logger:error_msg(ApplyErrorMsg, [FileName, Error])
+                    || Error <- Errors
+                    ]
             end;
         {error, {_, ReasonStr}} ->
-            lager:error("Error when reading ~s: ~s", [FileName, ReasonStr])
+            ReadErrorMsg = "Error when reading ~s: ~s",
+            error_logger:error_msg(ReadErrorMsg, [FileName, ReasonStr])
     end.
 
 %%%=============================================================================
@@ -89,22 +91,22 @@ read_config(FileName) ->
           ok |
           {error, ErrorList :: [term()]}. % todo
 apply_config_tuples(Config) ->
-    ErrorList =
-        lists:zf(
-          fun(ConfigTuple) when is_tuple(ConfigTuple) ->
-                  case apply_config_tuple(tuple_to_list(ConfigTuple)) of
-                      ok ->
-                          %% Don't add anything to the error list.
-                          false;
-                      {error, Reason} ->
-                          %% Add the error to the error list.
-                          {true, {Reason, ConfigTuple}}
-                  end;
-             (Term) ->
+    ErrorFun =
+        fun
+            (ConfigTuple) when is_tuple(ConfigTuple) ->
+                case apply_config_tuple(tuple_to_list(ConfigTuple)) of
+                    ok ->
+                        %% Don't add anything to the error list.
+                        false;
+                    {error, Reason} ->
+                        %% Add the error to the error list.
+                        {true, {Reason, ConfigTuple}}
+                end;
+            (Term) ->
                   %% Add the error to the error list.
                   {true, {not_a_tuple, Term}}
-          end, Config),
-
+        end,
+    ErrorList = lists:filtermap(ErrorFun, Config),
     case ErrorList of
         [] ->
             ok;
@@ -175,8 +177,8 @@ apply_config_tuple([Cmd|_]) ->
                           Replacement :: {set, term()} |
                                          {replace, term()} |
                                           unset) ->
-          ok |
-          {error, Reason :: term()}.
+        ok |
+        {error, Reason :: term()}.
 apply_config_change(AppName, ParamName, [], unset) ->
     %% Unset the whole config entry, e.g.:
     %%
@@ -224,7 +226,6 @@ apply_config_change(AppName, ParamName, Path, Replacement) ->
 
 replace(_OldValue, [] = _Path, {set, ReplacementTerm}) ->
     %% We need to simply replace the old value with the replacement.
-
     %% Example:
     %% - OldValue = 1
     %% - Path = []
@@ -237,7 +238,6 @@ replace(OldTupleList, [Key] = _Path, {replace, ReplacementTuple})
   when is_list(OldTupleList) ->
     %% Key is present in the OldTupleList, and there is no more element
     %% in the Path, so we should replace the key in OldTupleList.
-
     %% Example:
     %% - OldTupleList = [{a, [{x, 1}, {y, 2}]}, {b, 2}]
     %% - Path = [a]
@@ -249,7 +249,6 @@ replace(OldTupleList, [Key] = _Path, {replace, ReplacementTuple})
 replace(OldTupleList, [Key] = _Path, unset) when is_list(OldTupleList) ->
     %% Key is present in the OldTupleList, and there is no more element
     %% in the Path, so we should remove the key from OldTupleList.
-
     %% Example 1:
     %% - OldTupleList = [{a, "", 1}, {b, 2}]
     %% - Path = [a]
@@ -259,49 +258,43 @@ replace(OldTupleList, [Key] = _Path, unset) when is_list(OldTupleList) ->
 
 replace(OldTupleList, [Key|PathRest] = Path, Replacement)
   when is_list(OldTupleList) ->
-
     case {Replacement, lists:keyfind(Key, 1, OldTupleList)} of
-
         {unset, false} ->
             %% Key is not present and we want to delete it, so there is nothing
             %% to be done.
-
             %% Example:
             %% - OldTupleList = [{a, [{x, 1}, {y, 2}]}, {b, 2}]
             %% - Path = [c, x]
             %% --> Result = [{a, [{x, 1}, {y, 2}]}, {b, 2}]
-
             {ok, OldTupleList};
-
         {{set, ReplacementTerm}, false} ->
             %% Key is not present in the OldTupleList, so it should be added.
-
             %% Example 1:
             %% - OldTupleList = [{a, 1}, {b, 2}]
             %% - Path = [c]
             %% - ReplacementTerm: 33
             %% --> Result = [{c, 33}, {a, 1}, {b, 2}]
-            %%
             %% Example 2:
             %% - OldTupleList = [{a, [{x, 1}, {y, 2}]}, {b, 2}]
             %% - Path = [c, x]
             %% - ReplacementTerm = 33
             %% --> Result = [{c, [{x, 33}]}, {a, [{x, 1}, {y, 2}]}, {b, 2}]
-
+            %%
             %% Coming into this branch might be the result of a typo in
             %% the config, so let's log it.
-            lager:info("Configuring non-configured path: ~p "
-                       "(OldTupleList=~p, ReplacementTerm=~p)",
-                       [Path, OldTupleList, ReplacementTerm]),
+            InfoMsg =
+                "Configuring non-configured path: ~p "
+                "(OldTupleList=~p, ReplacementTerm=~p)",
+            error_logger:info_msg(InfoMsg, [Path, OldTupleList, ReplacementTerm]),
 
             NewElement =
                 lists:foldl(
-                  %% Example 2 execution:
-                  %% 1. Key = x, Acc = 33 --> [{x, 33}]
-                  %% 2. Key = c, Acc = [{x, 33}] --> [{c, [{x, 33}]}]
-                  fun(Key0, Acc) ->
-                          [{Key0, Acc}]
-                  end, ReplacementTerm, lists:reverse(Path)),
+                    %% Example 2 execution:
+                    %% 1. Key = x, Acc = 33 --> [{x, 33}]
+                    %% 2. Key = c, Acc = [{x, 33}] --> [{c, [{x, 33}]}]
+                    fun(Key0, Acc) ->
+                        [{Key0, Acc}]
+                    end, ReplacementTerm, lists:reverse(Path)),
             {ok, NewElement ++ OldTupleList};
 
         {{replace, ReplacementTuple}, false} ->
@@ -321,45 +314,42 @@ replace(OldTupleList, [Key|PathRest] = Path, Replacement)
 
             %% Coming into this branch might be the result of a typo in
             %% the config, so let's log it.
-            lager:info("Configuring non-configured path: ~p "
-                       "(OldTupleList=~p, ReplacementTuple=~p)",
-                       [Path, OldTupleList, ReplacementTuple]),
+            InfoMsg =
+                "Configuring non-configured path: ~p "
+                "(OldTupleList=~p, ReplacementTuple=~p)",
+            error_logger:info_msg(InfoMsg, [Path, OldTupleList, ReplacementTuple]),
 
             Path2 = droplast(Path),
             NewElement =
                 lists:foldl(
-                  %% Example 2 execution:
-                  %% 1. Key = c, Acc = {x, 1, 2} --> {c, [{x, 1, 2}]}
-                  fun(Key0, Acc) ->
-                          {Key0, [Acc]}
-                  end, ReplacementTuple, lists:reverse(Path2)),
+                    %% Example 2 execution:
+                    %% 1. Key = c, Acc = {x, 1, 2} --> {c, [{x, 1, 2}]}
+                    fun(Key0, Acc) ->
+                        {Key0, [Acc]}
+                    end, ReplacementTuple, lists:reverse(Path2)),
             {ok, [NewElement|OldTupleList]};
 
         {_Replacement, OldTuple} ->
             %% Key is present in the OldTupleList, so we should continue
             %% following the Path.
-
             %% Example 1:
             %% - OldTupleList = [{a, "", 1}, {b, 2}]
             %% - Path = [a]
             %% - Replacement = {set, 11}
             %% - OldTuple = {a, "", 1}
             %% --> Result = [{a, "", 11}, {b, 2}]
-            %%
             %% Example 2:
             %% - OldTupleList = [{a, [{x, 1}, {y, 2}]}, {b, 2}]
             %% - Path = [a, x]
             %% - Replacement = {set, 11}
             %% - OldTuple = {a, [{x, 1}, {y, 2}]}
             %% --> Result = [{a, [{x, 11}, {y, 2}]}, {b, 2}]
-            %%
             %% Example 3:
             %% - OldTupleList = [{a, [{x, 1}, {y, 2}]}, {b, 2}]
             %% - Path = [a, x]
             %% - Replacement = unset
             %% - OldTuple = {a, [{x, 1}, {y, 2}]}
             %% --> Result = [{a, [{y, 2}]}, {b, 2}]
-            %%
             %% Example 4:
             %% - OldTupleList = [{a, [{x, 1}, {y, 2}]}, {b, 2}]
             %% - Path = [a, x]
@@ -385,7 +375,6 @@ replace(OldTupleList, [Key|PathRest] = Path, Replacement)
             %%
             %% Therefore when we have a tuple (like the 4-tuple above), we
             %% should follow the last element of the tuple.
-
             LastElement = element(size(OldTuple), OldTuple),
             case replace(LastElement, PathRest, Replacement) of
                 {ok, NewLastElement} ->
@@ -409,5 +398,5 @@ replace(OldValue, [Key|_], _Replacement) ->
 %% @end
 %%------------------------------------------------------------------------------
 -spec droplast(List :: [T, ...]) -> [T] when T :: term().
-droplast([_T])  -> [];
-droplast([H|T]) -> [H|droplast(T)].
+droplast([_T])    -> [];
+droplast([H | T]) -> [H | droplast(T)].

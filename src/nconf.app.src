@@ -7,7 +7,7 @@
     , stdlib
     ]}
   , {modules, []}
-  , {mod, {example, []}}
+  , {mod, {nconf, []}}
   , {registered, []}
   ]
 }.

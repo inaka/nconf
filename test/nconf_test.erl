@@ -56,7 +56,7 @@ read_config_test() ->
        Reason),
     ?assertEqual(
         <<"1: syntax error before: terms">>,
-        wo_utils:characters_to_binary(ReasonStr)).
+        unicode:characters_to_binary(ReasonStr)).
 
 apply_config_tuples_test() ->
 
