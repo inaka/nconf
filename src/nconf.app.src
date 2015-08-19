@@ -1,0 +1,13 @@
+{ application
+, nconf
+, [ {description, "Nested Configuration Manager for Erlang Applications."}
+  , {vsn, "0.0.1"}
+  , {applications,
+    [ kernel
+    , stdlib
+    ]}
+  , {modules, []}
+  , {mod, {nconf, []}}
+  , {registered, []}
+  ]
+}.
