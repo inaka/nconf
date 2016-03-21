@@ -285,7 +285,8 @@ replace(OldTupleList, [Key|PathRest] = Path, Replacement)
             InfoMsg =
                 "Configuring non-configured path: ~p "
                 "(OldTupleList=~p, ReplacementTerm=~p)",
-            error_logger:info_msg(InfoMsg, [Path, OldTupleList, ReplacementTerm]),
+            error_logger:info_msg(InfoMsg,
+                                  [Path, OldTupleList, ReplacementTerm]),
 
             NewElement =
                 lists:foldl(
@@ -317,7 +318,8 @@ replace(OldTupleList, [Key|PathRest] = Path, Replacement)
             InfoMsg =
                 "Configuring non-configured path: ~p "
                 "(OldTupleList=~p, ReplacementTuple=~p)",
-            error_logger:info_msg(InfoMsg, [Path, OldTupleList, ReplacementTuple]),
+            error_logger:info_msg(InfoMsg,
+                                  [Path, OldTupleList, ReplacementTuple]),
 
             Path2 = droplast(Path),
             NewElement =

@@ -8,3 +8,9 @@ ebin
 erl_crash.dump
 rel/example_project
 xrefr
+.erlang.mk/
+_build/
+logs/
+nconf.d
+nconf_config_test_file.nconf
+rebar.lock
