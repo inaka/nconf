@@ -83,7 +83,7 @@ towards the leaf or branch to be modified or deleted. In case of the `set` and
 `replace` commands, the last element of the tuple defines the new value for the
 leaf or branch.
 
-The available commands in `wombat.config` are the following:
+The available commands in an nconf config file are the following:
 
 ```erlang
 {set, AppName, ParamName, Path1, ..., PathN, Replacement}.
